@@ -76,6 +76,21 @@ def get_panther_instance_url() -> str:
     return result
 
 
+def get_max_page_size() -> int:
+    """Get the maximum page size from environment variable.
+    
+    Returns:
+        int: The maximum page size (defaults to 999 if not set)
+    """
+    try:
+        max_size = int(os.getenv("PANTHER_MAX_PAGE_SIZE", "999"))
+        # Ensure it's at least 1
+        return max(1, max_size)
+    except ValueError:
+        logger.warning("Invalid PANTHER_MAX_PAGE_SIZE environment variable, using default 999")
+        return 999
+
+
 instance_config: Optional[Dict[str, Any]] = None
 
 
