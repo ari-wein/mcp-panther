@@ -10,7 +10,7 @@ from typing import Annotated, Any, Dict, List
 
 from pydantic import Field
 
-from ..client import _create_panther_client, get_today_date_range, graphql_date_format
+from ..client import _create_panther_client, get_today_date_range, graphql_date_format, get_max_page_size
 from ..permissions import Permission, all_perms
 from ..queries import (
     CANCEL_DATA_LAKE_QUERY,
@@ -216,15 +216,27 @@ async def get_data_lake_query_results(
             examples=["1234567890"],
         ),
     ],
+    page_size: Annotated[
+        int,
+        Field(
+            description=f"The number of results per page. Defaults to 100 with a maximum value of {get_max_page_size()}.",
+            ge=1,
+            le=get_max_page_size(),
+        ),
+    ] = 100,
 ) -> Dict[str, Any]:
     """Get the results of a previously executed data lake query.
+
+    Args:
+        query_id: The ID of the query to get results for
+        page_size: The number of results per page
 
     Returns:
         Dict containing:
         - success: Boolean indicating if the query was successful
         - status: Status of the query (e.g., "succeeded", "running", "failed", "cancelled")
         - message: Error message if unsuccessful
-        - results: List of query result rows
+        - results: List of query result rows (limited by page_size)
         - column_info: Dict containing column names and types
         - stats: Dict containing stats about the query
         - has_next_page: Boolean indicating if there are more results available
@@ -232,11 +244,21 @@ async def get_data_lake_query_results(
     """
     logger.info(f"Fetching data lake queryresults for query ID: {query_id}")
 
+    # Runtime validation to enforce the environment variable limit
+    max_page_size = get_max_page_size()
+    if page_size > max_page_size:
+        error_msg = f"Page size {page_size} exceeds maximum allowed size of {max_page_size} (set via PANTHER_MAX_PAGE_SIZE)"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "message": error_msg,
+        }
+
     try:
         client = await _create_panther_client()
 
         # Prepare input variables
-        variables = {"id": query_id, "root": False}
+        variables = {"id": query_id, "root": False, "pageSize": page_size}
 
         logger.debug(f"Query variables: {variables}")
 

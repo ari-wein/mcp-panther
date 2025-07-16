@@ -34,7 +34,7 @@ Panther's Model Context Protocol (MCP) server provides functionality to:
 | Tool Name | Description | Sample Prompt |
 |-----------|-------------|---------------|
 | `execute_data_lake_query` | Execute SQL queries against Panther's data lake | "Query AWS CloudTrail logs for failed login attempts in the last day" |
-| `get_data_lake_query_results` | Get results from a previously executed data lake query | "Get results for query ID abc123" |
+| `get_data_lake_query_results` | Get results from a previously executed data lake query with configurable page size (defaults to 100, max configurable via PANTHER_MAX_PAGE_SIZE env var) | "Get results for query ID abc123" or "Get first 50 results for query ID abc123" |
 | `list_data_lake_queries` | List previously executed data lake queries with comprehensive filtering options | "Show me all running queries from the last hour" |
 | `cancel_data_lake_query` | Cancel a running data lake query to free up resources and prevent system overload | "Cancel query abc123 that's taking too long" |
 | `get_table_schema` | Get schema information for a specific table | "Show me the schema for the AWS_CLOUDTRAIL table" |
@@ -122,6 +122,16 @@ Panther's Model Context Protocol (MCP) server provides functionality to:
 3. Copy the Panther instance URL from your browser (e.g., `https://YOUR-PANTHER-INSTANCE.domain`)
     - Note: This must include `https://`
 
+## Environment Variables
+
+The following environment variables can be configured:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PANTHER_INSTANCE_URL` | Yes | None | Your Panther instance URL (e.g., `https://yourcompany.runpanther.net`) |
+| `PANTHER_API_TOKEN` | Yes | None | Your Panther API token with appropriate permissions |
+| `PANTHER_MAX_PAGE_SIZE` | No | 999 | Maximum number of results per page for `get_data_lake_query_results` |
+
 ## MCP Server Installation
 
 **Choose one of the following installation methods:**
@@ -144,7 +154,8 @@ The easiest way to get started is using our pre-built Docker image:
       ],
       "env": {
         "PANTHER_INSTANCE_URL": "https://YOUR-PANTHER-INSTANCE.domain",
-        "PANTHER_API_TOKEN": "YOUR-API-KEY"
+        "PANTHER_API_TOKEN": "YOUR-API-KEY",
+        "PANTHER_MAX_PAGE_SIZE": "999"
       }
     }
   }
@@ -165,7 +176,8 @@ For Python users, you can run directly from PyPI using uvx:
       "args": ["mcp-panther"],
       "env": {
         "PANTHER_INSTANCE_URL": "https://YOUR-PANTHER-INSTANCE.domain",
-        "PANTHER_API_TOKEN": "YOUR-PANTHER-API-TOKEN"
+        "PANTHER_API_TOKEN": "YOUR-PANTHER-API-TOKEN",
+        "PANTHER_MAX_PAGE_SIZE": "999"
       }
     }
   }
@@ -201,7 +213,8 @@ To use with Claude Desktop, manually configure your `claude_desktop_config.json`
       "args": ["mcp-panther"],
       "env": {
         "PANTHER_INSTANCE_URL": "https://YOUR-PANTHER-INSTANCE.domain",
-        "PANTHER_API_TOKEN": "YOUR-PANTHER-API-TOKEN"
+        "PANTHER_API_TOKEN": "YOUR-PANTHER-API-TOKEN",
+        "PANTHER_MAX_PAGE_SIZE": "999"
       }
     }
   }

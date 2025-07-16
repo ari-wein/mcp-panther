@@ -164,7 +164,7 @@ mutation ExecuteDataLakeQuery($input: ExecuteDataLakeQueryInput!) {
 """)
 
 GET_DATA_LAKE_QUERY = gql("""
-query GetDataLakeQuery($id: ID!, $root: Boolean = false) {
+query GetDataLakeQuery($id: ID!, $root: Boolean = false, $pageSize: Int) {
     dataLakeQuery(id: $id, root: $root) {
         id
         status
@@ -172,7 +172,7 @@ query GetDataLakeQuery($id: ID!, $root: Boolean = false) {
         sql
         startedAt
         completedAt
-        results(input: { pageSize: 999 }) {
+        results(input: { pageSize: $pageSize }) {
             edges {
                 node
             }
