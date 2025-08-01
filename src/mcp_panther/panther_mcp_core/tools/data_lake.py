@@ -4,6 +4,7 @@ Tools for interacting with Panther's data lake.
 
 import asyncio
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -29,6 +30,10 @@ logger = logging.getLogger("mcp-panther")
 
 INITIAL_QUERY_SLEEP_SECONDS = 1
 MAX_QUERY_SLEEP_SECONDS = 5
+
+# Default number of results per page for data lake queries
+# Can be overridden by setting the PANTHER_DATA_LAKE_PAGE_SIZE environment variable
+DEFAULT_DATA_LAKE_PAGE_SIZE = 999
 
 
 # Snowflake reserved words that should be quoted when used as identifiers
@@ -301,7 +306,13 @@ async def query_data_lake(
         - column_info: Dict containing column names and types
         - stats: Dict containing stats about the query
         - has_next_page: Boolean indicating if there are more results available
-        - end_cursor: Cursor for fetching the next page of results, or null if no more pages
+        - end_cursor: Cursor for fetching the next page of results
+        
+    Pagination:
+        For large result sets, use the get_data_lake_query_page tool to fetch additional pages:
+        1. Check if has_next_page is true in the response
+        2. To fetch the next page, call get_data_lake_query_page with the query_id and end_cursor
+        3. Repeat until has_next_page is false
     """
     logger.info("Executing data lake query")
 
@@ -365,7 +376,7 @@ async def query_data_lake(
                     return {
                         "success": False,
                         "status": "cancelled",
-                        "message": "Query time exceeded timeout, and has been cancelled. A longer timout may be required. "
+                        "message": "Query time exceeded timeout, and has been cancelled. A longer timout may be required. " +
                         "Retrying may be faster due to caching, or you may need to reduce the duration of data being queried.",
                         "query_id": query_id,
                     }
@@ -393,6 +404,7 @@ async def _get_data_lake_query_results(
             examples=["1234567890"],
         ),
     ],
+    cursor: str | None = None,
 ) -> Dict[str, Any]:
     """Get the results of a previously executed data lake query.
 
@@ -410,8 +422,19 @@ async def _get_data_lake_query_results(
     logger.info(f"Fetching data lake queryresults for query ID: {query_id}")
 
     try:
+        # Get page size from environment variable or use default
+        try:
+            page_size = int(os.environ.get("PANTHER_DATA_LAKE_PAGE_SIZE", DEFAULT_DATA_LAKE_PAGE_SIZE))
+            # Ensure the value is reasonable
+            if page_size <= 0:
+                logger.warning(f"Invalid PANTHER_DATA_LAKE_PAGE_SIZE value: {page_size}, using default {DEFAULT_DATA_LAKE_PAGE_SIZE}")
+                page_size = DEFAULT_DATA_LAKE_PAGE_SIZE
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid PANTHER_DATA_LAKE_PAGE_SIZE value, using default {DEFAULT_DATA_LAKE_PAGE_SIZE}")
+            page_size = DEFAULT_DATA_LAKE_PAGE_SIZE
+
         # Prepare input variables
-        variables = {"id": query_id, "root": False}
+        variables = {"id": query_id, "pageSize": page_size, "root": False, "cursor": cursor}
 
         logger.debug(f"Query variables: {variables}")
 
@@ -719,6 +742,62 @@ async def get_table_schema(
         return {
             "success": False,
             "message": f"Failed to get columns for table: {str(e)}",
+        }
+
+
+@mcp_tool(
+    annotations={
+        "permissions": all_perms(Permission.DATA_ANALYTICS_READ),
+        "readOnlyHint": True,
+    }
+)
+async def get_data_lake_query_page(
+    query_id: Annotated[
+        str,
+        Field(
+            description="The ID of the query to get the next page of results for",
+            examples=["01be158e-0206-21d8-0008-8efb0196a9be"],
+        ),
+    ],
+    cursor: Annotated[
+        str | None,
+        Field(
+            description="Pagination cursor from the previous page's end_cursor field. If not provided, returns the first page.",
+            examples=["10"],
+        ),
+    ] = None,
+) -> Dict[str, Any]:
+    """Fetch a page of results from a previously executed data lake query.
+
+    This tool allows you to paginate through large query results without re-executing the entire SQL query.
+    It's designed to work with the query_data_lake tool - first execute your query with that tool,
+    then use this tool to retrieve additional pages of results.
+
+    Pagination workflow:
+    1. First call query_data_lake() to execute your SQL and get the first page of results
+    2. Check if the response has "has_next_page": true and an "end_cursor" value
+    3. To get the next page, call this function with the query_id and the end_cursor value
+    4. Repeat until "has_next_page" is false
+
+    Returns:
+        Dict containing:
+        - success: Boolean indicating if the request was successful
+        - status: Status of the query (e.g., "succeeded", "failed", "cancelled")
+        - results: List of query result rows for the requested page
+        - column_info: Dict containing column names and types
+        - stats: Dict containing stats about the query
+        - has_next_page: Boolean indicating if there are more results available
+        - end_cursor: Cursor for fetching the next page of results, or null if no more pages
+        - message: Error message if unsuccessful
+    """
+    try:
+        return await _get_data_lake_query_results(query_id=query_id, cursor=cursor)
+    except Exception as e:
+        logger.error(f"Failed to get query page: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Failed to get query page: {str(e)}",
+            "query_id": query_id,
         }
 
 

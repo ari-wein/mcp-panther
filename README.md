@@ -305,10 +305,14 @@ asyncio.run(test_connection())
 
 ### Environment Variables
 
+#### MCP Server Configuration
 - `MCP_TRANSPORT`: Set transport type (`stdio` or `streamable-http`)
 - `MCP_PORT`: Port for HTTP transport (default: 3000)
 - `MCP_HOST`: Host for HTTP transport (default: 127.0.0.1)
 - `MCP_LOG_FILE`: Log file path (optional)
+
+#### Feature Configuration
+- `PANTHER_DATA_LAKE_PAGE_SIZE`: Maximum results per page for data lake queries (default: 999). Reduces the number of results returned in a single response to prevent LLM context window overflow while preserving pagination capabilities. Lower values (100-200) are recommended when working with large result sets through an LLM.
 
 ## Security Best Practices
 
